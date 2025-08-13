@@ -1,4 +1,4 @@
-name: Build wkhtmltopdf static
+name: Build wkhtmltopdf static x86_64
 
 on:
   workflow_dispatch:
@@ -11,40 +11,26 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [x86_64, arm64]
     steps:
       - name: Checkout workflow files
         uses: actions/checkout@v4
 
-      - name: Set up QEMU for ARM
-        if: matrix.arch == 'arm64'
-        uses: docker/setup-qemu-action@v2
-        with:
-          platforms: arm64
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
       - name: Build Docker image for static build
         run: |
           docker build \
-            --build-arg ARCH=${{ matrix.arch }} \
             --build-arg WKHTMLTOPDF_VERSION=${{ github.event.inputs.version }} \
-            -t wkhtmltopdf-builder:${{ matrix.arch }} \
-            -f Dockerfile .
+            -t wkhtmltopdf-builder .
 
       - name: Run build in Docker
         run: |
           mkdir -p output
           docker run --rm \
             -v ${{ github.workspace }}/output:/output \
-            wkhtmltopdf-builder:${{ matrix.arch }} \
-            /bin/bash -c "scripts/build-static.sh && cp bin/wkhtmltopdf /output/wkhtmltopdf-${{ matrix.arch }}"
+            wkhtmltopdf-builder \
+            /bin/bash -c "scripts/build-static.sh && cp bin/wkhtmltopdf /output/wkhtmltopdf-x86_64"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wkhtmltopdf-${{ matrix.arch }}
-          path: output/wkhtmltopdf-${{ matrix.arch }}
+          name: wkhtmltopdf-x86_64
+          path: output/wkhtmltopdf-x86_64
