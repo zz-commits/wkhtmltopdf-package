@@ -1,7 +1,7 @@
-name: Build wkhtmltopdf 0.12.6 (Static All Platforms)
+name: Build wkhtmltopdf 0.12.6 (Static All Platforms with Logs)
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
 
 jobs:
   build:
@@ -10,6 +10,7 @@ jobs:
       matrix:
         arch: [x86_64, aarch64]
         os: [centos, ubuntu]
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,6 +20,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          set -ex
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
@@ -30,18 +32,22 @@ jobs:
 
       - name: Clone packaging repo
         run: |
+          set -ex
           git clone https://github.com/wkhtmltopdf/packaging.git
 
       - name: Build static binary
         run: |
+          set -ex
           cd packaging/static-build
           ./build.py \
             --platform=${{ matrix.os }}-${{ matrix.arch }} \
             --wkhtmltopdf-version=0.12.6 \
-            --output-dir=output
+            --output-dir=output \
+            --verbose
 
       - name: Package artifact
         run: |
+          set -ex
           cd packaging/static-build/output
           tar czvf wkhtmltopdf-0.12.6-${{ matrix.os }}-${{ matrix.arch }}.tar.gz wkhtmltopdf
           mkdir -p ../../artifacts
