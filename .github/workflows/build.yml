@@ -1,86 +1,46 @@
-name: Build wkhtmltopdf 0.12.6 (Static All Platforms with Logs)
+name: Build wkhtmltopdf static
 
 on:
-  workflow_dispatch:
+  push:
+    tags:
+      - '0.12.6'
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [x86_64, aarch64]
-        os: [centos, ubuntu]
-
+        arch: [x86_64, arm64]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Set up QEMU for ARM
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v2
         with:
-          repository: wkhtmltopdf/wkhtmltopdf
-          ref: 0.12.6
+          platforms: arm64
 
-      - name: Install dependencies
-        run: |
-          set -ex
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            python3 \
-            git \
-            qemu-user-static \
-            docker.io
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-      - name: Clone packaging repo
+      - name: Build Docker image for static build
         run: |
-          set -ex
-          git clone https://github.com/wkhtmltopdf/packaging.git
+          docker build \
+            --build-arg ARCH=${{ matrix.arch }} \
+            -t wkhtmltopdf-builder:${{ matrix.arch }} \
+            -f Dockerfile .
 
-      - name: Build static binary
+      - name: Run build in Docker
         run: |
-          set -ex
-          cd packaging/static-build
-          ./build.py \
-            --platform=${{ matrix.os }}-${{ matrix.arch }} \
-            --wkhtmltopdf-version=0.12.6 \
-            --output-dir=output \
-            --verbose
-
-      - name: Package artifact
-        run: |
-          set -ex
-          cd packaging/static-build/output
-          tar czvf wkhtmltopdf-0.12.6-${{ matrix.os }}-${{ matrix.arch }}.tar.gz wkhtmltopdf
-          mkdir -p ../../artifacts
-          mv wkhtmltopdf-0.12.6-${{ matrix.os }}-${{ matrix.arch }}.tar.gz ../../artifacts/
+          mkdir -p output
+          docker run --rm \
+            -v ${{ github.workspace }}/output:/output \
+            wkhtmltopdf-builder:${{ matrix.arch }} \
+            /bin/bash -c "cd /wkhtmltopdf && ./build.py --static && cp bin/wkhtmltopdf /output/wkhtmltopdf-${{ matrix.arch }}"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
-          name: wkhtmltopdf-${{ matrix.os }}-${{ matrix.arch }}
-          path: packaging/static-build/artifacts/*.tar.gz
-
-  release:
-    needs: build
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./release-files
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: wkhtmltopdf-0.12.6
-          name: wkhtmltopdf 0.12.6 Static Build
-          body: |
-            This release contains statically compiled wkhtmltopdf 0.12.6 binaries for:
-            - CentOS x86_64
-            - CentOS ARM64
-            - Ubuntu x86_64
-            - Ubuntu ARM64
-
-            These binaries are fully static and can run without additional dependencies.
-          files: ./release-files/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: wkhtmltopdf-${{ matrix.arch }}
+          path: output/wkhtmltopdf-${{ matrix.arch }}
