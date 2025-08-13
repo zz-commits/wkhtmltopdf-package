@@ -52,3 +52,29 @@ jobs:
         with:
           name: wkhtmltopdf-${{ matrix.os }}-${{ matrix.arch }}
           path: packaging/static-build/artifacts/*.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./release-files
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: wkhtmltopdf-0.12.6
+          name: wkhtmltopdf 0.12.6 Static Build
+          body: |
+            This release contains statically compiled wkhtmltopdf 0.12.6 binaries for:
+            - CentOS x86_64
+            - CentOS ARM64
+            - Ubuntu x86_64
+            - Ubuntu ARM64
+
+            These binaries are fully static and can run without additional dependencies.
+          files: ./release-files/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
